@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIM 수량 및 공간 산출서 — 업로드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+<style>
+  :root{
+    --bg:#0A121E;
+    --panel:#0E1929;
+    --panel-2:#122238;
+    --grid:rgba(93,156,236,0.06);
+    --line:rgba(148,178,214,0.16);
+    --line-strong:rgba(148,178,214,0.34);
+    --text:#E8EDF5;
+    --text-dim:#8CA0BC;
+    --text-faint:#4E617C;
+    --orange:#FF6B35;
+    --orange-dim:rgba(255,107,53,0.13);
+    --cyan:#52C7EC;
+    --cyan-dim:rgba(82,199,236,0.10);
+    --violet:#9C8CF5;
+    --violet-dim:rgba(156,140,245,0.12);
+    --green:#57D48B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:48px 24px 80px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+
+  /* ---- title block ---- */
+  .titleblock{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--line-strong);
+    padding-bottom:18px;margin-bottom:40px;
+    flex-wrap:wrap;gap:16px;
+  }
+  .tb-left .kicker{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;
+    color:var(--cyan);text-transform:uppercase;margin:0 0 10px;
+  }
+  .tb-left h1{
+    font-family:'Space Grotesk',sans-serif;font-weight:600;
+    font-size:32px;line-height:1.25;margin:0;letter-spacing:-0.01em;
+  }
+  .tb-left h1 span{color:var(--text-dim);font-weight:400;}
+  .tb-right{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-faint);
+    text-align:right;line-height:1.9;
+  }
+  .tb-right b{color:var(--text-dim);font-weight:500;}
+
+  /* ---- upload sheets ---- */
+  .sheets{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  @media(max-width:720px){.sheets{grid-template-columns:1fr;}}
+
+  .sheet{
+    position:relative;
+    background:var(--panel);
+    border:1px dashed var(--line);
+    border-radius:2px;
+    padding:28px 24px 24px;
+    transition:border-color .25s ease, background .25s ease;
+  }
+  .sheet.dragover{
+    border-color:var(--cyan);
+    background:var(--cyan-dim);
+  }
+  .sheet.filled{
+    border-style:solid;
+    border-color:var(--line-strong);
+  }
+  .tick{position:absolute;width:12px;height:12px;border-color:var(--text-faint);transition:border-color .25s ease;}
+  .sheet.dragover .tick, .sheet.filled .tick{border-color:var(--cyan);}
+  .tick.tl{top:-1px;left:-1px;border-top:1px solid;border-left:1px solid;}
+  .tick.tr{top:-1px;right:-1px;border-top:1px solid;border-right:1px solid;}
+  .tick.bl{bottom:-1px;left:-1px;border-bottom:1px solid;border-left:1px solid;}
+  .tick.br{bottom:-1px;right:-1px;border-bottom:1px solid;border-right:1px solid;}
+
+  .sheet-code{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-faint);
+    letter-spacing:0.08em;margin-bottom:4px;
+  }
+  .sheet-title{
+    font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:500;margin:0 0 18px;
+  }
+  .drop-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px 0;
+  }
+  .drop-icon{
+    width:36px;height:36px;margin-bottom:14px;color:var(--text-faint);
+  }
+  .sheet.dragover .drop-icon, .sheet.filled .drop-icon{color:var(--cyan);}
+  .drop-msg{font-size:13px;color:var(--text-dim);margin:0 0 4px;}
+  .drop-sub{font-size:11.5px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;}
+
+  .file-row{
+    display:none;align-items:center;justify-content:space-between;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:2px;
+    padding:10px 12px;margin-top:2px;
+  }
+  .sheet.filled .file-row{display:flex;}
+  .sheet.filled .drop-empty{display:none;}
+  .file-name{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--text);word-break:break-all;padding-right:10px;}
+  .file-size{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-faint);margin-left:8px;white-space:nowrap;}
+  .file-clear{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;}
+  .file-clear:hover{color:var(--orange);}
+
+  input[type=file]{display:none;}
+
+  /* ---- run button ---- */
+  .run-area{margin-top:32px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .btn-run{
+    font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;
+    background:var(--orange);color:#231005;border:none;border-radius:2px;
+    padding:14px 26px;cursor:pointer;letter-spacing:0.01em;
+    transition:transform .15s ease, background .15s ease;
+  }
+  .btn-run:hover{background:#FF7D4D;}
+  .btn-run:active{transform:scale(0.98);}
+  .btn-run:disabled{background:var(--panel-2);color:var(--text-faint);cursor:not-allowed;}
+  .run-note{font-size:12px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;}
+
+  /* ---- scan / progress ---- */
+  .scan-block{
+    margin-top:36px;border:1px solid var(--line);background:var(--panel);
+    padding:22px 24px;display:none;
+  }
+  .scan-block.active{display:block;}
+  .scan-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .scan-label{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--cyan);letter-spacing:0.08em;}
+  .scan-pct{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);}
+  .scan-track{position:relative;height:2px;background:var(--line);overflow:hidden;margin-bottom:20px;}
+  .scan-fill{position:absolute;left:0;top:0;height:100%;width:0%;background:var(--cyan);transition:width .4s linear;}
+  .scan-line{position:absolute;top:-6px;height:14px;width:1px;background:var(--cyan);box-shadow:0 0 6px var(--cyan);transform:translateX(-50%);left:0%;transition:left .4s linear;}
+
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);}
+  .readout div{background:var(--panel);padding:12px 14px;}
+  .readout .k{font-size:11px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;}
+  .readout .v{font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--text);}
+  .readout .v.pending{color:var(--text-faint);}
+  @media(max-width:600px){.readout{grid-template-columns:1fr 1fr;}}
+
+  /* ---- stamp / result ---- */
+  .stamp-block{margin-top:32px;display:none;align-items:center;gap:20px;flex-wrap:wrap;}
+  .stamp-block.active{display:flex;}
+  .stamp{
+    width:76px;height:76px;border:2px solid var(--green);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    transform:rotate(-8deg);flex-shrink:0;
+  }
+  .stamp span{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green);letter-spacing:0.05em;}
+  .stamp span:first-child{font-size:9px;}
+  .result-text{flex:1;min-width:200px;}
+  .result-text .rt-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:500;margin:0 0 4px;}
+  .result-text .rt-sub{font-size:12.5px;color:var(--text-dim);margin:0;}
+  .btn-download{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;
+    background:none;border:1px solid var(--line-strong);color:var(--text);
+    padding:12px 20px;border-radius:2px;cursor:pointer;white-space:nowrap;
+    display:flex;align-items:center;gap:8px;
+    transition: all 0.25s ease;
+  }
+  .btn-download:hover{border-color:var(--cyan);color:var(--cyan);}
+
+  /* ---- combined 3D viewer ---- */
+  .viewer-block{margin-top:32px;display:none;}
+  .viewer-block.active{display:block;}
+  .viewer-head{
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    border-bottom:1px solid var(--line-strong);padding-bottom:14px;margin-bottom:0;
+  }
+  .viewer-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:500;margin:0;}
+  .viewer-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-faint);margin-top:3px;}
+  .layer-toggles{display:flex;gap:8px;}
+  .layer-btn{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;display:flex;align-items:center;gap:7px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:2px;
+    padding:8px 12px;cursor:pointer;color:var(--text-dim);
+  }
+  .layer-btn .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .layer-btn.arch .dot{background:var(--cyan);}
+  .layer-btn.struct .dot{background:var(--violet);}
+  .layer-btn.off{opacity:0.35;}
+  .viewer-stage{
+    position:relative;height:420px;background:var(--panel);border:1px solid var(--line);
+    margin-top:14px;overflow:hidden;
+  }
+  .viewer-stage canvas{display:block;width:100%;height:100%;}
+  .viewer-hint{
+    position:absolute;bottom:12px;left:14px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;color:var(--text-faint);pointer-events:none;
+  }
+  .section-ctrl{
+    display:flex;align-items:center;gap:12px;margin-top:14px;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-dim);
+  }
+  .section-ctrl input[type=range]{flex:1;accent-color:var(--cyan);}
+  
+  /* ---- Error popup ---- */
+  .error-block {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: rgba(255, 107, 53, 0.08);
+    border: 1px solid rgba(255, 107, 53, 0.25);
+    border-radius: 2px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .error-block.active {
+    display: flex;
+  }
+  .error-text {
+    font-size: 13px;
+    color: var(--orange);
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div class="tb-left">
+      <p class="kicker">BIM quantity extractor</p>
+      <h1>BIM 수량 및 공간<br><span>산출서 자동 생성</span></h1>
+    </div>
+    <div class="tb-right">
+      <div><b>SHEET</b> UPLOAD&#8211;01</div>
+      <div><b>ENGINE</b> hwp_autowriter.py</div>
+      <div><b>FORMAT</b> .ifc &#8594; .xlsx</div>
+    </div>
+  </div>
+
+  <div class="sheets">
+
+    <!-- Architecture Sheet (A-01) -->
+    <div class="sheet" id="sheet-arch" data-kind="건축">
+      <div class="tick tl"></div><div class="tick tr"></div><div class="tick bl"></div><div class="tick br"></div>
+      <div class="sheet-code">A&#8211;01 / ARCHITECTURE</div>
+      <p class="sheet-title">건축 모델 (BA.ifc)</p>
+      <label class="drop-empty" style="cursor:pointer;display:flex;">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 4v11m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <p class="drop-msg">파일을 끌어다 놓거나 클릭하여 선택</p>
+        <p class="drop-sub">.ifc &middot; IFC2x3 / IFC4</p>
+        <input type="file" accept=".ifc">
+      </label>
+      <div class="file-row">
+        <div><span class="file-name">BA.ifc</span><span class="file-size">0.0 MB</span></div>
+        <button class="file-clear" title="제거">&times;</button>
+      </div>
+    </div>
+
+    <!-- Structure Sheet (S-01) -->
+    <div class="sheet" id="sheet-struct" data-kind="구조">
+      <div class="tick tl"></div><div class="tick tr"></div><div class="tick bl"></div><div class="tick br"></div>
+      <div class="sheet-code">S&#8211;01 / STRUCTURE</div>
+      <p class="sheet-title">구조 모델 (BS.ifc)</p>
+      <label class="drop-empty" style="cursor:pointer;display:flex;">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 4v11m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <p class="drop-msg">파일을 끌어다 놓거나 클릭하여 선택</p>
+        <p class="drop-sub">.ifc &middot; IFC2x3 / IFC4</p>
+        <input type="file" accept=".ifc">
+      </label>
+      <div class="file-row">
+        <div><span class="file-name">BS.ifc</span><span class="file-size">0.0 MB</span></div>
+        <button class="file-clear" title="제거">&times;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="run-area">
+    <button class="btn-run" id="runBtn" disabled>분석 시작</button>
+    <span class="run-note">두 모델 중 하나만 업로드해도 분석할 수 있습니다</span>
+  </div>
+
+  <!-- Error display block -->
+  <div class="error-block" id="errorBlock">
+    <i class="fa-solid fa-triangle-exclamation" style="color: var(--orange);"></i>
+    <p class="error-text" id="errorText">오류 메시지가 이곳에 표시됩니다.</p>
+  </div>
+
+  <div class="scan-block" id="scanBlock">
+    <div class="scan-head">
+      <span class="scan-label">SCANNING &#8212; 수량 산출 중</span>
+      <span class="scan-pct" id="scanPct">0%</span>
+    </div>
+    <div class="scan-track"><div class="scan-fill" id="scanFill"></div><div class="scan-line" id="scanLine"></div></div>
+    <div class="readout">
+      <div><div class="k">건축 벽체 면적</div><div class="v pending" id="r1">&#8212;</div></div>
+      <div><div class="k">건축 실 면적</div><div class="v pending" id="r2">&#8212;</div></div>
+      <div><div class="k">구조 부재 물량</div><div class="v pending" id="r3">&#8212;</div></div>
+    </div>
+  </div>
+
+  <div class="stamp-block" id="stampBlock">
+    <div class="stamp"><span>ANALYSIS</span><span style="font-size:13px;">완료</span></div>
+    <div class="result-text">
+      <p class="rt-title">BIM_수량_및_공간_산출서.xlsx</p>
+      <p class="rt-sub" id="resultDesc">건축 시트 &middot; 구조 시트 &middot; 생성 완료</p>
+    </div>
+    <button class="btn-download" id="downloadBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v11m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      엑셀 다운로드
+    </button>
+  </div>
+
+  <div class="viewer-block" id="viewerBlock">
+    <div class="viewer-head">
+      <div>
+        <p class="viewer-title">결합 좌표 모델 &#8212; 건축 + 구조</p>
+        <p class="viewer-sub">A&#8211;01 &amp; S&#8211;01 공유 원점 기준 정합됨</p>
+      </div>
+      <div class="layer-toggles">
+        <button class="layer-btn arch" id="toggleArch"><span class="dot"></span>건축</button>
+        <button class="layer-btn struct" id="toggleStruct"><span class="dot"></span>구조</button>
+      </div>
+    </div>
+    <div class="viewer-stage" id="viewerStage" style="position:relative;">
+      <div class="viewer-hint">드래그: 회전 &middot; 스크롤: 확대/축소 &middot; 클릭: 부재 선택</div>
+      
+      <!-- Info Panel overlay -->
+      <div id="infoPanel" style="position:absolute; top:14px; right:14px; background:rgba(14,25,41,0.85); backdrop-filter:blur(8px); border:1px solid var(--line-strong); border-radius:2px; padding:16px; width:280px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--text); display:none; z-index:10; pointer-events:auto; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:12px;">
+          <span style="font-weight:600; color:var(--cyan); font-family:'Inter',sans-serif;">부재 상세 정보</span>
+          <button id="closeInfoBtn" style="background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:16px; padding:0 4px; line-height:1;">&times;</button>
+        </div>
+        <div style="margin-bottom:8px;"><span style="color:var(--text-faint);">ID:</span> <span id="infoId" style="color:var(--text); font-weight:500;"></span></div>
+        <div style="margin-bottom:8px;"><span style="color:var(--text-faint);">부재분류:</span> <span id="infoClass" style="color:var(--text); font-weight:500;"></span></div>
+        <div style="margin-bottom:8px;"><span style="color:var(--text-faint);">위치(층):</span> <span id="infoStorey" style="color:var(--text); font-weight:500;"></span></div>
+        <div style="margin-bottom:8px;"><span style="color:var(--text-faint);">유형명:</span> <span id="infoType" style="color:var(--text); font-weight:500; word-break:break-all;"></span></div>
+        <div style="margin-bottom:8px;"><span style="color:var(--text-faint);">부재명:</span> <span id="infoName" style="color:var(--text); font-weight:500; word-break:break-all;"></span></div>
+        <div style="margin-bottom:0;"><span style="color:var(--text-faint);">수량/체적:</span> <span id="infoQty" style="color:var(--orange); font-weight:600;"></span></div>
+      </div>
+    </div>
+    <div class="section-ctrl" style="gap:16px; flex-wrap:wrap; display:flex; align-items:center;">
+      <span>단면 절단 범위</span>
+      <div style="display:flex; gap:10px; font-family:'IBM Plex Mono',monospace; font-size:11px;">
+        <label style="cursor:pointer; display:flex; align-items:center; gap:4px; color:var(--text-dim);"><input type="radio" name="clipAxis" value="Y" checked style="margin:0; accent-color:var(--cyan);">수평(Y)</label>
+        <label style="cursor:pointer; display:flex; align-items:center; gap:4px; color:var(--text-dim);"><input type="radio" name="clipAxis" value="X" style="margin:0; accent-color:var(--cyan);">수직(X)</label>
+        <label style="cursor:pointer; display:flex; align-items:center; gap:4px; color:var(--text-dim);"><input type="radio" name="clipAxis" value="Z" style="margin:0; accent-color:var(--cyan);">수직(Z)</label>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:200px;">
+        <span style="font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;">시작</span>
+        <input type="range" id="sectionStartSlider" min="0" max="100" value="0" style="flex:1; accent-color:var(--cyan);">
+        <span style="font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;">끝</span>
+        <input type="range" id="sectionEndSlider" min="0" max="100" value="100" style="flex:1; accent-color:var(--cyan);">
+      </div>
+      <span id="sectionLabel" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--cyan); min-width:80px; text-align:right;">해제</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let fileA = null;
+let fileS = null;
+
+// Architecture Dropzone setup
+const sheetArch = document.getElementById('sheet-arch');
+const inputArch = sheetArch.querySelector('input[type=file]');
+const labelArch = sheetArch.querySelector('.drop-empty');
+const fnameArch = sheetArch.querySelector('.file-name');
+const fsizeArch = sheetArch.querySelector('.file-size');
+const clearArch = sheetArch.querySelector('.file-clear');
+
+// Structure Dropzone setup
+const sheetStruct = document.getElementById('sheet-struct');
+const inputStruct = sheetStruct.querySelector('input[type=file]');
+const labelStruct = sheetStruct.querySelector('.drop-empty');
+const fnameStruct = sheetStruct.querySelector('.file-name');
+const fsizeStruct = sheetStruct.querySelector('.file-size');
+const clearStruct = sheetStruct.querySelector('.file-clear');
+
+const runBtn = document.getElementById('runBtn');
+const errorBlock = document.getElementById('errorBlock');
+const errorText = document.getElementById('errorText');
+
+function updateButtonState() {
+  if (fileA || fileS) {
+    runBtn.removeAttribute('disabled');
+  } else {
+    runBtn.setAttribute('disabled', 'true');
+  }
+}
+
+// Architecture Event Bindings
+['dragenter','dragover'].forEach(evt => labelArch.addEventListener(evt, e => {
+  e.preventDefault();
+  if (!fileA) sheetArch.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(evt => labelArch.addEventListener(evt, e => {
+  e.preventDefault();
+  sheetArch.classList.remove('dragover');
+}));
+labelArch.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if(f) selectFile('a', f);
+});
+inputArch.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(f) selectFile('a', f);
+});
+clearArch.addEventListener('click', (e) => {
+  e.stopPropagation();
+  fileA = null;
+  sheetArch.classList.remove('filled');
+  inputArch.value = '';
+  updateButtonState();
+});
+
+// Structure Event Bindings
+['dragenter','dragover'].forEach(evt => labelStruct.addEventListener(evt, e => {
+  e.preventDefault();
+  if (!fileS) sheetStruct.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(evt => labelStruct.addEventListener(evt, e => {
+  e.preventDefault();
+  sheetStruct.classList.remove('dragover');
+}));
+labelStruct.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if(f) selectFile('s', f);
+});
+inputStruct.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(f) selectFile('s', f);
+});
+clearStruct.addEventListener('click', (e) => {
+  e.stopPropagation();
+  fileS = null;
+  sheetStruct.classList.remove('filled');
+  inputStruct.value = '';
+  updateButtonState();
+});
+
+function selectFile(type, file) {
+  if (!file.name.toLowerCase().endsWith('.ifc')) {
+    showErrorMessage('IFC 파일(*.ifc)만 업로드할 수 있습니다.');
+    return;
+  }
+  
+  errorBlock.classList.remove('active');
+  
+  if (type === 'a') {
+    fileA = file;
+    fnameArch.textContent = file.name;
+    fsizeArch.textContent = (file.size/1024/1024).toFixed(1)+' MB';
+    sheetArch.classList.add('filled');
+  } else {
+    fileS = file;
+    fnameStruct.textContent = file.name;
+    fsizeStruct.textContent = (file.size/1024/1024).toFixed(1)+' MB';
+    sheetStruct.classList.add('filled');
+  }
+  updateButtonState();
+}
+
+function showErrorMessage(msg) {
+  errorText.textContent = msg;
+  errorBlock.classList.add('active');
+}
+
+// Analysis triggering
+let downloadUrl = "";
+let progressInterval = null;
+
+runBtn.addEventListener('click', async function(){
+  if (!fileA && !fileS) return;
+  
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = '분석 중...';
+  
+  errorBlock.classList.remove('active');
+  document.getElementById('scanBlock').classList.add('active');
+  document.getElementById('stampBlock').classList.remove('active');
+  document.getElementById('viewerBlock').classList.remove('active');
+  
+  const r1 = document.getElementById('r1');
+  const r2 = document.getElementById('r2');
+  const r3 = document.getElementById('r3');
+  
+  r1.textContent = '—'; r1.classList.add('pending');
+  r2.textContent = '—'; r2.classList.add('pending');
+  r3.textContent = '—'; r3.classList.add('pending');
+
+  const fill = document.getElementById('scanFill');
+  const line = document.getElementById('scanLine');
+  const pct = document.getElementById('scanPct');
+
+  let p = 0;
+  fill.style.width = '0%';
+  line.style.left = '0%';
+  pct.textContent = '0%';
+  
+  // Create Form Data
+  const formData = new FormData();
+  if (fileA) formData.append('file_a', fileA);
+  if (fileS) formData.append('file_s', fileS);
+
+  // Start progress simulation (up to 92%)
+  progressInterval = setInterval(() => {
+    if (p < 92) {
+      p += Math.random() * 1.5 + 0.3;
+      if (p > 92) p = 92;
+      fill.style.width = p.toFixed(0) + '%';
+      line.style.left = p.toFixed(0) + '%';
+      pct.textContent = p.toFixed(0) + '%';
+    }
+  }, 150);
+
+  try {
+    const response = await fetch('/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+      clearInterval(progressInterval);
+      
+      // Animate remaining progress quickly to 100%
+      let currentP = p;
+      const endInterval = setInterval(() => {
+        currentP += 5;
+        if (currentP >= 100) {
+          currentP = 100;
+          clearInterval(endInterval);
+          
+          fill.style.width = '100%';
+          line.style.left = '100%';
+          pct.textContent = '100%';
+          
+          // Fill readouts with actual numbers
+          r1.textContent = result.readouts.arch_wall_area;
+          if (result.readouts.arch_wall_area !== '—') r1.classList.remove('pending');
+          
+          r2.textContent = result.readouts.arch_space_area;
+          if (result.readouts.arch_space_area !== '—') r2.classList.remove('pending');
+          
+          r3.textContent = result.readouts.struct_element_qty;
+          if (result.readouts.struct_element_qty !== '—') r3.classList.remove('pending');
+          
+          // Result description
+          const descParts = [];
+          if (fileA) descParts.push("건축 3개 시트");
+          if (fileS) descParts.push("구조 2개 시트");
+          document.getElementById('resultDesc').textContent = descParts.join(" & ") + " · 생성 완료";
+          
+          downloadUrl = result.download_url;
+          window.archGeomUrl = result.arch_geom_url;
+          window.structGeomUrl = result.struct_geom_url;
+          
+          setTimeout(() => {
+            document.getElementById('stampBlock').classList.add('active');
+            document.getElementById('viewerBlock').classList.add('active');
+            btn.disabled = false;
+            btn.textContent = '분석 시작';
+            initViewer();
+          }, 300);
+        } else {
+          fill.style.width = currentP.toFixed(0) + '%';
+          line.style.left = currentP.toFixed(0) + '%';
+          pct.textContent = currentP.toFixed(0) + '%';
+        }
+      }, 30);
+      
+    } else {
+      clearInterval(progressInterval);
+      document.getElementById('scanBlock').classList.remove('active');
+      btn.disabled = false;
+      btn.textContent = '분석 시작';
+      showErrorMessage(result.error || '수량 추출 중 오류가 발생했습니다.');
+    }
+  } catch (err) {
+    clearInterval(progressInterval);
+    document.getElementById('scanBlock').classList.remove('active');
+    btn.disabled = false;
+    btn.textContent = '분석 시작';
+    showErrorMessage('네트워크 통신 오류가 발생했습니다.');
+    console.error(err);
+  }
+});
+
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  if (downloadUrl) {
+    window.location.href = downloadUrl;
+  }
+});
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+let started = false;
+let archGroup, structGroup, renderer, camera, controls, scene;
+let clipPlaneStart, clipPlaneEnd;
+
+async function loadGeomJson(url, group, colorHex, opacity) {
+  while(group.children.length > 0) {
+    group.remove(group.children[0]);
+  }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return;
+    const data = await response.json();
+    
+    const material = new THREE.MeshStandardMaterial({
+      color: colorHex,
+      transparent: opacity < 1.0,
+      opacity: opacity,
+      clippingPlanes: [clipPlaneStart, clipPlaneEnd],
+      side: THREE.DoubleSide
+    });
+    
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: opacity * 0.4,
+      clippingPlanes: [clipPlaneStart, clipPlaneEnd]
+    });
+    
+    for (const item of data) {
+      if (!item.verts || item.verts.length === 0) continue;
+      const geometry = new THREE.BufferGeometry();
+      const vertices = new Float32Array(item.verts);
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      if (item.faces && item.faces.length > 0) {
+        geometry.setIndex(item.faces);
+      }
+      geometry.computeVertexNormals();
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      
+      // Store element metadata in mesh userData
+      mesh.userData = {
+        id: item.id,
+        class: item.class || 'Unknown',
+        name: item.name || 'Unnamed',
+        type: item.type || 'Unnamed Type',
+        storey: item.storey || 'Unknown Storey',
+        quantity: item.quantity || '—'
+      };
+      
+      group.add(mesh);
+      
+      const edgesGeom = new THREE.EdgesGeometry(geometry);
+      const line = new THREE.LineSegments(edgesGeom, edgeMaterial);
+      group.add(line);
+    }
+    adjustCamera();
+  } catch (err) {
+    console.error("Error loading geometry:", err);
+  }
+}
+
+// Bounding box range cache for clipping slider
+let currentMin = { x: 0, y: 0, z: 0 };
+let currentMax = { x: 0, y: 0, z: 0 };
+
+function adjustCamera() {
+  const box = new THREE.Box3();
+  let hasGeom = false;
+  if (archGroup && archGroup.visible && archGroup.children.length > 0) {
+    box.expandByObject(archGroup);
+    hasGeom = true;
+  }
+  if (structGroup && structGroup.visible && structGroup.children.length > 0) {
+    box.expandByObject(structGroup);
+    hasGeom = true;
+  }
+  if (!hasGeom) return;
+  
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  
+  controls.target.copy(center);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const cameraDistance = Math.max(maxDim * 1.5, 30);
+  camera.position.set(center.x + cameraDistance, center.y + cameraDistance * 0.7, center.z + cameraDistance);
+  camera.lookAt(center);
+  controls.update();
+  
+  // Cache bounds
+  currentMin.x = box.min.x; currentMax.x = box.max.x;
+  currentMin.y = box.min.y; currentMax.y = box.max.y;
+  currentMin.z = box.min.z; currentMax.z = box.max.z;
+  
+  bindClippingEvents();
+}
+
+function bindClippingEvents() {
+  const startSlider = document.getElementById('sectionStartSlider');
+  const endSlider = document.getElementById('sectionEndSlider');
+  const radios = document.getElementsByName('clipAxis');
+  
+  const newStartSlider = startSlider.cloneNode(true);
+  startSlider.parentNode.replaceChild(newStartSlider, startSlider);
+  
+  const newEndSlider = endSlider.cloneNode(true);
+  endSlider.parentNode.replaceChild(newEndSlider, endSlider);
+  
+  function performClipping() {
+    const axis = document.querySelector('input[name="clipAxis"]:checked').value;
+    const startPct = Number(newStartSlider.value);
+    const endPct = Number(newEndSlider.value);
+    const label = document.getElementById('sectionLabel');
+    
+    if (startPct > endPct) {
+      newStartSlider.value = endPct;
+      return;
+    }
+    
+    let minVal, maxVal;
+    if (axis === 'Y') {
+      clipPlaneStart.normal.set(0, 1, 0);
+      clipPlaneEnd.normal.set(0, -1, 0);
+      minVal = currentMin.y;
+      maxVal = currentMax.y;
+    } else if (axis === 'X') {
+      clipPlaneStart.normal.set(1, 0, 0);
+      clipPlaneEnd.normal.set(-1, 0, 0);
+      minVal = currentMin.x;
+      maxVal = currentMax.x;
+    } else {
+      clipPlaneStart.normal.set(0, 0, 1);
+      clipPlaneEnd.normal.set(0, 0, -1);
+      minVal = currentMin.z;
+      maxVal = currentMax.z;
+    }
+    
+    const startVal = minVal + (startPct / 100) * (maxVal - minVal);
+    const endVal = minVal + (endPct / 100) * (maxVal - minVal);
+    
+    clipPlaneStart.constant = -startVal;
+    clipPlaneEnd.constant = endVal;
+    
+    if (startPct === 0 && endPct === 100) {
+      label.textContent = '해제';
+    } else {
+      label.textContent = startVal.toFixed(1) + 'm ~ ' + endVal.toFixed(1) + 'm';
+    }
+  }
+  
+  newStartSlider.addEventListener('input', performClipping);
+  newEndSlider.addEventListener('input', performClipping);
+  
+  radios.forEach(radio => {
+    const newRadio = radio.cloneNode(true);
+    radio.parentNode.replaceChild(newRadio, radio);
+    newRadio.addEventListener('change', () => {
+      newStartSlider.value = 0;
+      newEndSlider.value = 100;
+      performClipping();
+    });
+  });
+  
+  newStartSlider.value = 0;
+  newEndSlider.value = 100;
+  performClipping();
+}
+
+// Raycaster selection variables
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let selectedMesh = null;
+
+function setupRaycasting(stageElement) {
+  stageElement.addEventListener('click', (event) => {
+    if (event.target.id === 'closeInfoBtn') {
+      document.getElementById('infoPanel').style.display = 'none';
+      if (selectedMesh) {
+        selectedMesh.material = selectedMesh.userData.originalMaterial;
+        selectedMesh = null;
+      }
+      return;
+    }
+    
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    
+    const meshes = [];
+    archGroup.traverse(child => { if(child.isMesh) meshes.push(child); });
+    structGroup.traverse(child => { if(child.isMesh) meshes.push(child); });
+    
+    const intersects = raycaster.intersectObjects(meshes, false);
+    
+    if (selectedMesh) {
+      selectedMesh.material = selectedMesh.userData.originalMaterial;
+      selectedMesh = null;
+    }
+    
+    if (intersects.length > 0) {
+      const hit = intersects[0].object;
+      
+      if (hit && hit.userData && hit.userData.id) {
+        selectedMesh = hit;
+        selectedMesh.userData.originalMaterial = selectedMesh.material;
+        selectedMesh.material = selectedMesh.material.clone();
+        selectedMesh.material.color.setHex(0xFF6B35);
+        
+        const u = selectedMesh.userData;
+        document.getElementById('infoId').textContent = u.id;
+        document.getElementById('infoClass').textContent = u.class;
+        document.getElementById('infoStorey').textContent = u.storey;
+        document.getElementById('infoType').textContent = u.type;
+        document.getElementById('infoName').textContent = u.name;
+        document.getElementById('infoQty').textContent = u.quantity;
+        document.getElementById('infoPanel').style.display = 'block';
+        return;
+      }
+    }
+    
+    document.getElementById('infoPanel').style.display = 'none';
+  });
+}
+
+window.initViewer = function(){
+  if(started) {
+    if (window.archGeomUrl) {
+      loadGeomJson(window.archGeomUrl, archGroup, 0x52C7EC, 0.28);
+    } else {
+      while(archGroup.children.length > 0) archGroup.remove(archGroup.children[0]);
+    }
+    if (window.structGeomUrl) {
+      loadGeomJson(window.structGeomUrl, structGroup, 0x9C8CF5, 1.0);
+    } else {
+      while(structGroup.children.length > 0) structGroup.remove(structGroup.children[0]);
+    }
+    
+    archGroup.visible = fileA !== null;
+    document.getElementById('toggleArch').classList.toggle('off', fileA === null);
+    structGroup.visible = fileS !== null;
+    document.getElementById('toggleStruct').classList.toggle('off', fileS === null);
+    
+    document.getElementById('infoPanel').style.display = 'none';
+    if (selectedMesh) {
+      selectedMesh = null;
+    }
+    return;
+  }
+  started = true;
+
+  const stage = document.getElementById('viewerStage');
+  const w = stage.clientWidth || 872;
+  const h = stage.clientHeight || 420;
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 1000);
+  camera.position.set(38, 30, 42);
+
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(w,h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.localClippingEnabled = true;
+  stage.appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0,6,0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.update();
+
+  const amb = new THREE.AmbientLight(0xffffff, 0.65);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(20,30,10);
+  scene.add(dir);
+
+  const gridHelper = new THREE.GridHelper(100, 40, 0x2b3f5a, 0x1c2c42);
+  scene.add(gridHelper);
+
+  clipPlaneStart = new THREE.Plane(new THREE.Vector3(0, 1, 0), -100);
+  clipPlaneEnd = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
+
+  archGroup = new THREE.Group();
+  archGroup.visible = fileA !== null;
+  document.getElementById('toggleArch').classList.toggle('off', fileA === null);
+  scene.add(archGroup);
+  if (window.archGeomUrl) {
+    loadGeomJson(window.archGeomUrl, archGroup, 0x52C7EC, 0.28);
+  }
+
+  structGroup = new THREE.Group();
+  structGroup.visible = fileS !== null;
+  document.getElementById('toggleStruct').classList.toggle('off', fileS === null);
+  scene.add(structGroup);
+  if (window.structGeomUrl) {
+    loadGeomJson(window.structGeomUrl, structGroup, 0x9C8CF5, 1.0);
+  }
+
+  setupRaycasting(stage);
+  
+  document.getElementById('closeInfoBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('infoPanel').style.display = 'none';
+    if (selectedMesh) {
+      selectedMesh.material = selectedMesh.userData.originalMaterial;
+      selectedMesh = null;
+    }
+  });
+
+  function animate(){
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', ()=>{
+    const w2 = stage.clientWidth, h2 = stage.clientHeight;
+    camera.aspect = w2/h2; camera.updateProjectionMatrix();
+    renderer.setSize(w2,h2);
+  });
+
+  document.getElementById('toggleArch').addEventListener('click', function(){
+    if (fileA) {
+      archGroup.visible = !archGroup.visible;
+      this.classList.toggle('off', !archGroup.visible);
+      adjustCamera();
+    }
+  });
+  document.getElementById('toggleStruct').addEventListener('click', function(){
+    if (fileS) {
+      structGroup.visible = !structGroup.visible;
+      this.classList.toggle('off', !structGroup.visible);
+      adjustCamera();
+    }
+  });
+};
+</script>
+</body>
+</html>

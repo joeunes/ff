@@ -1,0 +1,30 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local uploads and outputs
+uploads/
+outputs/
+temp/
+
+# Editor and AI logs
+.gemini/
+.agents/
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+EHthumbs.db
+Desktop.ini
+
+# BIM files and reports
+*.ifc
+*.rvt
+*.hwp
+*.xlsx
+~$*.xlsx
+calculated_images/
+
