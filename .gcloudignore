@@ -1,0 +1,7 @@
+# This file specifies files and directories that should be ignored by gcloud
+.gcloudignore
+.git
+.gitignore
+
+# Inherit .gitignore rules
+#!include:.gitignore
