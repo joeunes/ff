@@ -252,6 +252,7 @@
       <h1>BIM 수량 및 공간<br><span>산출서 자동 생성</span></h1>
     </div>
     <div class="tb-right">
+      <div style="cursor:pointer;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:2px 8px;margin-bottom:6px;font-size:11px;" id="apiSettingsBtn">⚙️ <b>API BASE</b> <span id="apiBaseLabel" style="color:var(--cyan)">LOCAL</span></div>
       <div><b>SHEET</b> UPLOAD&#8211;01</div>
       <div><b>ENGINE</b> hwp_autowriter.py</div>
       <div><b>FORMAT</b> .ifc &#8594; .xlsx</div>
@@ -488,6 +489,47 @@ function showErrorMessage(msg) {
   errorBlock.classList.add('active');
 }
 
+// API Server Settings
+window.getApiBase = function() {
+  return localStorage.getItem('api_base') || '';
+};
+
+const apiSettingsBtn = document.getElementById('apiSettingsBtn');
+const apiBaseLabel = document.getElementById('apiBaseLabel');
+
+function updateApiBaseLabel() {
+  const base = localStorage.getItem('api_base') || '';
+  if (base) {
+    try {
+      const url = new URL(base);
+      apiBaseLabel.textContent = url.hostname;
+    } catch {
+      apiBaseLabel.textContent = 'CUSTOM';
+    }
+  } else {
+    apiBaseLabel.textContent = 'LOCAL';
+  }
+}
+
+apiSettingsBtn.addEventListener('click', () => {
+  const current = localStorage.getItem('api_base') || '';
+  const input = prompt('연동할 API 백엔드 서버 주소를 입력하세요 (로컬 실행 시 비워두세요):\n예: https://ff-backend.onrender.com', current);
+  if (input !== null) {
+    let trimmed = input.trim();
+    if (trimmed && trimmed.endsWith('/')) {
+      trimmed = trimmed.slice(0, -1);
+    }
+    if (trimmed) {
+      localStorage.setItem('api_base', trimmed);
+    } else {
+      localStorage.removeItem('api_base');
+    }
+    updateApiBaseLabel();
+  }
+});
+
+updateApiBaseLabel();
+
 // Analysis triggering
 let downloadUrl = "";
 let progressInterval = null;
@@ -538,7 +580,7 @@ runBtn.addEventListener('click', async function(){
   }, 150);
 
   try {
-    const response = await fetch('/upload', {
+    const response = await fetch(window.getApiBase() + '/upload', {
       method: 'POST',
       body: formData
     });
@@ -613,7 +655,7 @@ runBtn.addEventListener('click', async function(){
 
 document.getElementById('downloadBtn').addEventListener('click', function() {
   if (downloadUrl) {
-    window.location.href = downloadUrl;
+    window.location.href = window.getApiBase() + downloadUrl;
   }
 });
 </script>
@@ -631,7 +673,7 @@ async function loadGeomJson(url, group, colorHex, opacity) {
     group.remove(group.children[0]);
   }
   try {
-    const response = await fetch(url);
+    const response = await fetch(window.getApiBase() + url);
     if (!response.ok) return;
     const data = await response.json();
     

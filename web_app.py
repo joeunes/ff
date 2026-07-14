@@ -3,9 +3,11 @@ import time
 import shutil
 import tempfile
 from flask import Flask, request, render_template, send_file, jsonify
+from flask_cors import CORS
 from hwp_autowriter import run_bim_to_excel
 
 app = Flask(__name__)
+CORS(app)
 
 # Configure upload and output directories
 if os.name == 'nt':
